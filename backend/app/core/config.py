@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     MAX_TIMESTAMP_DRIFT_SECONDS: int = 300  # 5 minutes
     MAX_REQUEST_SIZE: int = 1048576  # 1MB
+    MAX_EVENTS_PER_MINUTE: int = 60
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
+
 
     class Config:
         env_file = ".env"

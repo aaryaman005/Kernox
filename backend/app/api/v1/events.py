@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.schemas.event_schema import Event
 from app.services.endpoint_registry import endpoint_registry
 from app.services.event_guard import event_guard
+from app.services.rate_limiter import rate_limiter
 from datetime import datetime, timezone
 from app.core.config import settings
 import hmac
@@ -42,6 +43,18 @@ async def ingest_event(request: Request, event: Event):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing signature",
+        )
+
+    # ─────────────────────────────────────────────
+    # 3️⃣ RATE LIMITING
+    # ─────────────────────────────────────────────
+    if not rate_limiter.is_allowed(event.endpoint.endpoint_id):
+        logger.warning(
+            f"Rate limit exceeded | endpoint={event.endpoint.endpoint_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
         )
 
     secret = endpoint_registry.get_secret(event.endpoint.endpoint_id)
