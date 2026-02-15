@@ -1,0 +1,1 @@
+# Event formatting and emission
