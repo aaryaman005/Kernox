@@ -48,7 +48,12 @@ async def ingest_event(request: Request, event: Event):
     # 3️⃣ TIMESTAMP DRIFT VALIDATION
     # ─────────────────────────────────────────────
     now = datetime.now(timezone.utc)
+
     event_time = event.timestamp
+
+    # Normalize naive timestamps to UTC
+    if event_time.tzinfo is None:
+        event_time = event_time.replace(tzinfo=timezone.utc)
 
     drift = abs((now - event_time).total_seconds())
 
