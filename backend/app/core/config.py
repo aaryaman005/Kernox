@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     MAX_REQUEST_SIZE: int = 1048576  # 1MB
     MAX_EVENTS_PER_MINUTE: int = 60
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+    ENV: str = "development"  # development | production
+    ENFORCE_HTTPS: bool = False
+
 
 
     class Config:
@@ -15,3 +18,7 @@ class Settings(BaseSettings):
         extra = "forbid"
 
 settings = Settings()
+
+@property
+def https_required(self) -> bool:
+    return self.ENV == "production" and self.ENFORCE_HTTPS

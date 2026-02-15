@@ -119,10 +119,14 @@ async def ingest_event(request: Request, event: Event):
     # 3️⃣ ACCEPT EVENT
     # ─────────────────────────────────────────────
     logger.info(
-        f"Event accepted | "
-        f"event_id={event.event_id} | "
-        f"endpoint={event.endpoint.endpoint_id} | "
-        f"type={event.event_type.value}"
+        "Event accepted",
+        extra={
+            "extra_data": {
+              "event": "event_accepted",
+              "event_id": str(event.event_id),
+              "endpoint_id": event.endpoint.endpoint_id,
+            },
+        }
     )
 
     return JSONResponse(

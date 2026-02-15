@@ -7,13 +7,19 @@ from app.core.exceptions import validation_exception_handler
 from app.core.security import SecurityMiddleware
 from app.api.v1 import health,events
 from app.api.v1 import endpoints
+from app.core.https_middleware import HTTPSMiddleware
+from app.core.logging_config import setup_logging
+
 
 
 configure_logging()
+setup_logging()
 
 app = FastAPI(title=settings.APP_NAME)
 
 app.add_middleware(SecurityMiddleware)
+app.add_middleware(HTTPSMiddleware)
+
 
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
