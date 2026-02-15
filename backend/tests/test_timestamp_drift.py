@@ -75,7 +75,7 @@ def test_timestamp_outside_drift_fails():
 
     raw = json.dumps(payload).encode()
     
-    hashed_secret = hashlib.sha256(secret.encode()).hexdigest()
+    
     signature = hmac.new(
         secret.encode(),
         raw,
