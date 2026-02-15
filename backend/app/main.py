@@ -6,6 +6,8 @@ from app.core.logging import configure_logging
 from app.core.exceptions import validation_exception_handler
 from app.core.security import SecurityMiddleware
 from app.api.v1 import health,events
+from app.api.v1 import endpoints
+
 
 configure_logging()
 
@@ -25,4 +27,10 @@ app.include_router(
     events.router,
     prefix=settings.API_V1_PREFIX,
     tags=["events"]
+)
+
+app.include_router(
+    endpoints.router,
+    prefix=settings.API_V1_PREFIX,
+    tags=["endpoints"]
 )
