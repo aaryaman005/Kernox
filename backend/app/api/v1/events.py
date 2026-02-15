@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.schemas.event_schema import Event
 from app.services.endpoint_registry import endpoint_registry
+from app.services.event_guard import event_guard
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -11,19 +12,9 @@ logger = logging.getLogger(__name__)
 
 @router.post("/events", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event(request: Request, event: Event):
-    """
-    Secure event ingestion endpoint.
-
-    Security Layers:
-    - Strict schema validation via Pydantic
-    - Rejects unknown fields
-    - Enforces schema version
-    - Enforces exactly one payload group
-    - Rejects unregistered endpoints
-    """
 
     # ─────────────────────────────────────────────
-    # 1️⃣ TRUST BOUNDARY CHECK
+    # 1️⃣ TRUST CHECK
     # ─────────────────────────────────────────────
     if not endpoint_registry.is_registered(event.endpoint.endpoint_id):
         logger.warning(
@@ -36,7 +27,22 @@ async def ingest_event(request: Request, event: Event):
         )
 
     # ─────────────────────────────────────────────
-    # 2️⃣ ACCEPT EVENT (minimal safe logging)
+    # 2️⃣ REPLAY PROTECTION
+    # ─────────────────────────────────────────────
+    if event_guard.is_duplicate(str(event.event_id)):
+        logger.warning(
+            f"Replay detected | event_id={event.event_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Duplicate event_id",
+        )
+
+    # Record event as seen
+    event_guard.record(str(event.event_id))
+
+    # ─────────────────────────────────────────────
+    # 3️⃣ ACCEPT EVENT
     # ─────────────────────────────────────────────
     logger.info(
         f"Event accepted | "
@@ -44,17 +50,6 @@ async def ingest_event(request: Request, event: Event):
         f"endpoint={event.endpoint.endpoint_id} | "
         f"type={event.event_type.value}"
     )
-
-    # ─────────────────────────────────────────────
-    # FUTURE SECURITY HOOKS (DO NOT REMOVE)
-    # ─────────────────────────────────────────────
-    # TODO:
-    # - Verify HMAC signature
-    # - Enforce rate limiting
-    # - Check replay protection (event_id uniqueness)
-    # - Timestamp drift validation
-    # - Persist event to database
-    # - Send to queue/worker pipeline
 
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
