@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.exceptions import validation_exception_handler
 from app.core.security import SecurityMiddleware
-from app.api.v1 import health
+from app.api.v1 import health,events
 
 configure_logging()
 
@@ -19,4 +19,10 @@ app.include_router(
     health.router,
     prefix=settings.API_V1_PREFIX,
     tags=["health"]
+)
+
+app.include_router(
+    events.router,
+    prefix=settings.API_V1_PREFIX,
+    tags=["events"]
 )
