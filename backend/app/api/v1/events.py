@@ -20,13 +20,20 @@ logger = logging.getLogger(__name__)
 @router.post("/events", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_event(request: Request, event: Event):
 
+    endpoint_id = event.endpoint.endpoint_id
+
     # ─────────────────────────────────────────────
     # 1️⃣ TRUST CHECK
     # ─────────────────────────────────────────────
-    if not endpoint_registry.is_registered(event.endpoint.endpoint_id):
+    if not endpoint_registry.is_registered(endpoint_id):
         logger.warning(
-            f"Rejected event from unregistered endpoint | "
-            f"endpoint={event.endpoint.endpoint_id}"
+            "unregistered_endpoint",
+            extra={
+                "extra_data": {
+                    "event": "unregistered_endpoint",
+                    "endpoint_id": endpoint_id,
+                }
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -44,24 +51,20 @@ async def ingest_event(request: Request, event: Event):
             detail="Missing signature",
         )
 
-    raw_body = await request.body()
+    secret_hash = endpoint_registry.get_secret_hash(endpoint_id)
 
-    endpoint_id = event.endpoint.endpoint_id
-    endpoint = endpoint_registry._endpoints.get(endpoint_id)
-
-    if not endpoint:
+    if not secret_hash:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unregistered endpoint",
         )
 
-    # Using secret_hash as HMAC key (unchanged logic)
-    secret_key = endpoint["secret_hash"]
+    raw_body = await request.body()
 
     expected_signature = hmac.new(
-        secret_key.encode(),
+        secret_hash.encode(),  # hashed secret used as key
         raw_body,
-        hashlib.sha256
+        hashlib.sha256,
     ).hexdigest()
 
     if not hmac.compare_digest(signature, expected_signature):
@@ -82,48 +85,43 @@ async def ingest_event(request: Request, event: Event):
     # ─────────────────────────────────────────────
     # 3️⃣ RATE LIMITING
     # ─────────────────────────────────────────────
-    if not rate_limiter.is_allowed(event.endpoint.endpoint_id):
+    if not rate_limiter.is_allowed(endpoint_id):
         logger.warning(
-            f"Rate limit exceeded | endpoint={event.endpoint.endpoint_id}"
+            "rate_limit_exceeded",
+            extra={
+                "extra_data": {
+                    "event": "rate_limit_exceeded",
+                    "endpoint_id": endpoint_id,
+                }
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded",
         )
 
-    # SECOND HMAC CHECK (kept exactly as-is)
-    secret = endpoint_registry.get_secret(event.endpoint.endpoint_id)
-
-    raw_body = await request.body()
-
-    expected_signature = hmac.new(
-        secret.encode(),
-        raw_body,
-        hashlib.sha256
-    ).hexdigest()
-
-    if not hmac.compare_digest(signature, expected_signature):
-        logger.warning(
-            f"Invalid signature | endpoint={event.endpoint.endpoint_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid signature",
-        )
-
     # ─────────────────────────────────────────────
     # 4️⃣ REPLAY PROTECTION
     # ─────────────────────────────────────────────
-    if event_guard.is_duplicate(str(event.event_id)):
+    event_id_str = str(event.event_id)
+
+    if event_guard.is_duplicate(event_id_str):
         logger.warning(
-            f"Replay detected | event_id={event.event_id}"
+            "replay_detected",
+            extra={
+                "extra_data": {
+                    "event": "replay_detected",
+                    "endpoint_id": endpoint_id,
+                    "event_id": event_id_str,
+                }
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Duplicate event_id",
         )
 
-    event_guard.record(str(event.event_id))
+    event_guard.record(event_id_str)
 
     # ─────────────────────────────────────────────
     # 5️⃣ TIMESTAMP DRIFT VALIDATION
@@ -131,6 +129,7 @@ async def ingest_event(request: Request, event: Event):
     now = datetime.now(timezone.utc)
     event_time = event.timestamp
 
+    # Ensure timezone awareness
     if event_time.tzinfo is None:
         event_time = event_time.replace(tzinfo=timezone.utc)
 
@@ -138,8 +137,15 @@ async def ingest_event(request: Request, event: Event):
 
     if drift > settings.MAX_TIMESTAMP_DRIFT_SECONDS:
         logger.warning(
-            f"Rejected event due to timestamp drift | "
-            f"event_id={event.event_id} | drift={drift}s"
+            "timestamp_drift_rejected",
+            extra={
+                "extra_data": {
+                    "event": "timestamp_drift_rejected",
+                    "endpoint_id": endpoint_id,
+                    "event_id": event_id_str,
+                    "drift_seconds": drift,
+                }
+            },
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,20 +156,20 @@ async def ingest_event(request: Request, event: Event):
     # 6️⃣ ACCEPT EVENT
     # ─────────────────────────────────────────────
     logger.info(
-        "Event accepted",
+        "event_accepted",
         extra={
             "extra_data": {
                 "event": "event_accepted",
-                "event_id": str(event.event_id),
-                "endpoint_id": event.endpoint.endpoint_id,
-            },
-        }
+                "endpoint_id": endpoint_id,
+                "event_id": event_id_str,
+            }
+        },
     )
 
     return JSONResponse(
         status_code=status.HTTP_202_ACCEPTED,
         content={
             "status": "accepted",
-            "event_id": str(event.event_id),
+            "event_id": event_id_str,
         },
     )
