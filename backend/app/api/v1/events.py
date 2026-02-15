@@ -24,14 +24,9 @@ async def ingest_event(request: Request, event: Event):
     # SECURITY: Log minimal safe metadata only
     # ─────────────────────────────────────────────
     logger.info(
-        "Event received",
-        extra={
-            "event_id": str(event.event_id),
-            "endpoint_id": event.endpoint.endpoint_id,
-            "event_type": event.event_type.value,
-            "severity": event.severity.value,
-        },
+    f"Event accepted | event_id={event.event_id} | endpoint={event.endpoint.endpoint_id}"
     )
+
 
     # ─────────────────────────────────────────────
     # FUTURE SECURITY HOOKS (DO NOT REMOVE)

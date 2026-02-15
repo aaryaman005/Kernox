@@ -3,6 +3,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette import status
+from app.core.request_context import request_id_ctx_var
 
 from app.core.config import settings
 
@@ -15,6 +16,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # ─────────────────────────────────────────────
         request_id = str(uuid.uuid4())
         request.state.request_id = request_id
+        request_id_ctx_var.set(request_id)
+
 
         # ─────────────────────────────────────────────
         # 2️⃣ Enforce JSON for body methods only
