@@ -7,6 +7,9 @@ from app.services.endpoint_registry import endpoint_registry
 from app.services.event_guard import event_guard
 from datetime import datetime, timezone
 from app.core.config import settings
+import hmac
+import hashlib
+
 
 
 router = APIRouter()
@@ -27,6 +30,37 @@ async def ingest_event(request: Request, event: Event):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Unregistered endpoint",
+        )
+    
+
+        # ─────────────────────────────────────────────
+    # 2️⃣ HMAC SIGNATURE VERIFICATION
+    # ─────────────────────────────────────────────
+    signature = request.headers.get("X-Signature")
+
+    if not signature:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing signature",
+        )
+
+    secret = endpoint_registry.get_secret(event.endpoint.endpoint_id)
+
+    raw_body = await request.body()
+
+    expected_signature = hmac.new(
+        secret.encode(),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(signature, expected_signature):
+        logger.warning(
+            f"Invalid signature | endpoint={event.endpoint.endpoint_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid signature",
         )
 
     # ─────────────────────────────────────────────

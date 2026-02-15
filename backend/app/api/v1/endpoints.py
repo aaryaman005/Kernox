@@ -15,6 +15,7 @@ def register_endpoint(payload: EndpointRegistration):
     endpoint_registry.register(
         endpoint_id=payload.endpoint_id,
         hostname=payload.hostname,
+        secret=payload.secret,
     )
 
     logger.info(f"Endpoint registered | endpoint_id={payload.endpoint_id}")
