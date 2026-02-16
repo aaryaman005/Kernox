@@ -1,32 +1,16 @@
 """
 Kernox — Agent Heartbeat
 
-Periodically sends agent health status.
-Phase 1: stdout output.
-Future: HTTP POST to backend heartbeat endpoint.
+Periodically sends agent health status through the event emitter.
 """
 
-import json
-import platform
-import sys
 import threading
 import time
-from datetime import datetime, timezone
-
-from agent.config import (
-    HOSTNAME,
-    ENDPOINT_ID,
-    HEARTBEAT_INTERVAL_SEC,
-    EVENT_OUTPUT_MODE,
-)
 
 
 class Heartbeat:
     """
     Background thread that emits periodic heartbeat signals.
-
-    Includes: alive status, system info, last event timestamp,
-    agent uptime, and tracked process count.
     """
 
     def __init__(self, event_emitter=None, process_tree=None):
@@ -41,7 +25,7 @@ class Heartbeat:
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run,
-            name="sentinel-heartbeat",
+            name="kernox-heartbeat",
             daemon=True,
         )
         self._thread.start()
@@ -54,14 +38,13 @@ class Heartbeat:
 
     def _run(self) -> None:
         """Main heartbeat loop."""
+        from agent.config import HEARTBEAT_INTERVAL_SEC
         while not self._stop_event.is_set():
             self._send_heartbeat()
             self._stop_event.wait(timeout=HEARTBEAT_INTERVAL_SEC)
 
     def _send_heartbeat(self) -> None:
-        """Construct and emit a heartbeat message via the emitter."""
-        uptime = time.time() - self._start_time
-
+        """Emit a heartbeat event through the hardened schema."""
         if self._emitter:
             self._emitter.emit({
                 "event_type": "heartbeat",

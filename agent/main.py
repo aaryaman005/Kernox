@@ -2,18 +2,12 @@
 """
 Kernox — eBPF Endpoint Agent
 
-Main entry point. Ties together:
-  - eBPF Process Monitor (execve / exit tracing)
-  - eBPF File Activity Monitor (open / write / rename)
-  - eBPF Network Monitor (outbound TCP connections)
-  - eBPF Privilege Escalation Monitor (setuid / setgid)
-  - Process Lineage Tree (parent→child DAG)
-  - Event Emitter (JSON output)
-  - Heartbeat (periodic health signals)
-  - Response Hook (kill, block, isolate, quarantine)
+Main entry point. Ties together all eBPF monitors, process lineage,
+event emitter, heartbeat, and response hook.
 
 Usage:
     sudo python3 -m agent.main
+    sudo python3 -m agent
 
 Requires root privileges for eBPF operations.
 """
@@ -27,7 +21,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from agent.config import ENDPOINT_ID, HOSTNAME, PROCESS_TREE_MAX_SIZE
+from agent.logging_config import logger
+from agent.config import ENDPOINT_ID, HOSTNAME, PROCESS_TREE_MAX_SIZE, PID_FILE
+from agent.pidfile import acquire_pidfile, release_pidfile
 from agent.ebpf.process_monitor import ProcessMonitor
 from agent.ebpf.file_monitor import FileMonitor
 from agent.ebpf.net_monitor import NetworkMonitor
@@ -52,15 +48,17 @@ BANNER = r"""
 def main() -> None:
     # ── Check privileges ─────────────────────────────────────
     if os.geteuid() != 0:
-        print("[ERROR] This agent requires root privileges.", file=sys.stderr)
-        print("        Run with: sudo python3 -m agent.main", file=sys.stderr)
+        logger.error("This agent requires root privileges.")
+        logger.error("Run with: sudo python3 -m agent.main")
         sys.exit(1)
 
     print(BANNER, file=sys.stderr)
-    print(f"[*] Hostname  : {HOSTNAME}", file=sys.stderr)
-    print(f"[*] Endpoint  : {ENDPOINT_ID}", file=sys.stderr)
-    print(f"[*] Tree limit: {PROCESS_TREE_MAX_SIZE}", file=sys.stderr)
-    print("", file=sys.stderr)
+    logger.info("Hostname  : %s", HOSTNAME)
+    logger.info("Endpoint  : %s", ENDPOINT_ID)
+    logger.info("Tree limit: %d", PROCESS_TREE_MAX_SIZE)
+
+    # ── Acquire PID file (single instance) ───────────────────
+    acquire_pidfile(PID_FILE)
 
     # ── Initialize components ────────────────────────────────
     tree = ProcessTree(max_size=PROCESS_TREE_MAX_SIZE)
@@ -87,14 +85,15 @@ def main() -> None:
             return
         _shutting_down = True
 
-        print("\n[*] Shutting down Kernox agent...", file=sys.stderr)
+        logger.info("Shutting down Kernox agent...")
         proc_monitor.stop()
         for m in monitors:
             m.stop()
         heartbeat.stop()
-        print(f"[*] Total events emitted: {emitter.event_count}", file=sys.stderr)
-        print(f"[*] Processes tracked   : {tree.size}", file=sys.stderr)
-        print("[*] Agent stopped.", file=sys.stderr)
+        release_pidfile(PID_FILE)
+        logger.info("Total events emitted: %d", emitter.event_count)
+        logger.info("Processes tracked   : %d", tree.size)
+        logger.info("Agent stopped.")
         os._exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
@@ -102,23 +101,19 @@ def main() -> None:
 
     # ── Start all monitors ───────────────────────────────────
     heartbeat.start()
-    print("[*] Heartbeat started.", file=sys.stderr)
+    logger.info("Heartbeat started.")
 
-    # Start auxiliary monitors (they load their own BPF programs)
     for m in monitors:
         try:
             m.start()
         except Exception as e:
-            print(f"[WARN] Failed to start {m.__class__.__name__}: {e}", file=sys.stderr)
+            logger.warning("Failed to start %s: %s", m.__class__.__name__, e)
 
-    # Start response hook listener
     response_hook.start()
-    print("[*] Response hook listening.", file=sys.stderr)
+    logger.info("Response hook listening.")
 
-    # Process monitor runs the main poll loop
-    # We interleave polling of all monitors
-    print("[*] All monitors active. Watching endpoint...", file=sys.stderr)
-    print("", file=sys.stderr)
+    # ── Main poll loop ───────────────────────────────────────
+    logger.info("All monitors active. Watching endpoint...")
 
     try:
         proc_monitor._load_bpf()
@@ -132,7 +127,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        print(f"[ERROR] Monitor loop failed: {e}", file=sys.stderr)
+        logger.error("Monitor loop failed: %s", e)
     finally:
         shutdown(None, None)
 
