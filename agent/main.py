@@ -28,6 +28,7 @@ from agent.ebpf.process_monitor import ProcessMonitor
 from agent.ebpf.file_monitor import FileMonitor
 from agent.ebpf.net_monitor import NetworkMonitor
 from agent.ebpf.priv_monitor import PrivEscalationMonitor
+from agent.ebpf.auth_monitor import AuthMonitor
 from agent.events.event_emitter import EventEmitter
 from agent.tracking.process_tree import ProcessTree
 from agent.health.heartbeat import Heartbeat
@@ -70,11 +71,12 @@ def main() -> None:
     file_monitor = FileMonitor(emitter=emitter)
     net_monitor = NetworkMonitor(emitter=emitter)
     priv_monitor = PrivEscalationMonitor(emitter=emitter)
+    auth_monitor = AuthMonitor(emitter=emitter)
 
     # Response hook
     response_hook = ResponseHook(emitter=emitter)
 
-    monitors = [file_monitor, net_monitor, priv_monitor]
+    monitors = [file_monitor, net_monitor, priv_monitor, auth_monitor]
 
     # ── Graceful shutdown ────────────────────────────────────
     _shutting_down = False

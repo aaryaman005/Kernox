@@ -40,10 +40,15 @@ VALID_EVENT_TYPES = frozenset({
     "network_connect",
     # Privilege
     "privilege_change",
+    # Authentication
+    "auth_login_success",
+    "auth_login_failure",
+    "auth_sudo",
     # Alerts
     "alert_ransomware_burst",
     "alert_c2_beaconing",
     "alert_privilege_escalation",
+    "alert_brute_force",
     # Response actions
     "response_action",
     "response_rollback",
@@ -101,6 +106,7 @@ class EventEmitter:
         self._lock = threading.Lock()
         self._event_count = 0
         self._last_event_time: str | None = None
+        self._http_transport = None
 
     # ── Public API ───────────────────────────────────────────
 
@@ -218,16 +224,34 @@ class EventEmitter:
         }
 
     def _build_auth(self, raw: dict) -> dict | None:
-        """Extract auth/privilege fields for privilege events."""
+        """Extract auth/privilege fields for privilege and auth events."""
         et = raw.get("event_type", "")
-        if not et.startswith("privilege_") and et != "alert_privilege_escalation":
+        is_priv = et.startswith("privilege_") or et == "alert_privilege_escalation"
+        is_auth = et.startswith("auth_") or et == "alert_brute_force"
+
+        if not is_priv and not is_auth:
             return None
 
-        return {
-            "uid": _sanitize_int(raw.get("uid", 0)),
-            "target_id": _sanitize_int(raw.get("target_id", 0)),
-            "target_user": _sanitize_str(raw.get("target_username", "")),
-        }
+        result = {}
+
+        # Privilege escalation fields
+        if is_priv:
+            result["uid"] = _sanitize_int(raw.get("uid", 0))
+            result["target_id"] = _sanitize_int(raw.get("target_id", 0))
+            result["target_user"] = _sanitize_str(raw.get("target_username", ""))
+
+        # Auth login fields
+        if is_auth:
+            if "source_ip" in raw:
+                result["source_ip"] = _sanitize_str(raw.get("source_ip", ""))
+            if "source_port" in raw:
+                result["source_port"] = _sanitize_int(raw.get("source_port", 0))
+            if "auth_method" in raw:
+                result["auth_method"] = _sanitize_str(raw.get("auth_method", ""))
+            if "target_username" in raw:
+                result["target_user"] = _sanitize_str(raw.get("target_username", ""))
+
+        return result
 
     def _build_alert(self, raw: dict) -> dict | None:
         """Extract alert-specific metadata for alert events."""
@@ -254,10 +278,24 @@ class EventEmitter:
     # ── Output ───────────────────────────────────────────────
 
     def _output(self, event: dict) -> None:
-        """Write validated event to stdout (Phase 1)."""
-        line = json.dumps(event, default=str, ensure_ascii=True)
+        """Write validated event to configured output."""
+        if EVENT_OUTPUT_MODE == "http":
+            self._output_http(event)
+        else:
+            self._output_stdout(event)
 
-        if EVENT_OUTPUT_MODE == "stdout":
-            with self._lock:
-                sys.stdout.write(line + "\n")
-                sys.stdout.flush()
+    def _output_stdout(self, event: dict) -> None:
+        """Write event as JSON to stdout."""
+        line = json.dumps(event, default=str, ensure_ascii=True)
+        with self._lock:
+            sys.stdout.write(line + "\n")
+            sys.stdout.flush()
+
+    def _output_http(self, event: dict) -> None:
+        """Send event via HTTP transport."""
+        if self._http_transport is None:
+            from agent.config import API_EVENTS_ENDPOINT
+            from agent.transport.http_transport import HTTPTransport
+            self._http_transport = HTTPTransport(API_EVENTS_ENDPOINT)
+            self._http_transport.start()
+        self._http_transport.enqueue(event)
