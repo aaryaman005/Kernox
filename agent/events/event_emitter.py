@@ -38,6 +38,8 @@ VALID_EVENT_TYPES = frozenset({
     "file_delete",
     # Network
     "network_connect",
+    # DNS
+    "dns_query",
     # Privilege
     "privilege_change",
     # Authentication
@@ -49,6 +51,9 @@ VALID_EVENT_TYPES = frozenset({
     "alert_c2_beaconing",
     "alert_privilege_escalation",
     "alert_brute_force",
+    "alert_suspicious_dns",
+    "alert_log_tamper",
+    "alert_rule_match",
     # Response actions
     "response_action",
     "response_rollback",
