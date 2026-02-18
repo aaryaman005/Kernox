@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.endpoint import Endpoint
 from app.models.event import Event as EventModel
-
+from app.services.detection_engine import DetectionEngine
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -117,6 +117,11 @@ async def ingest_event(
 
     try:
         db.add(event_record)
+        db.flush()
+
+        # 🔥 Run detection inside same transaction
+        DetectionEngine.run(db, event_record)
+
         db.commit()
     except IntegrityError:
         db.rollback()
