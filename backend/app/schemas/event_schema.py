@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 # ENUMS
 # ─────────────────────────────────────────────
 
+
 class EventType(str, Enum):
     process_start = "process_start"
     process_exit = "process_exit"
@@ -30,6 +31,7 @@ class Severity(str, Enum):
 # ─────────────────────────────────────────────
 # NESTED MODELS
 # ─────────────────────────────────────────────
+
 
 class Endpoint(BaseModel):
     endpoint_id: str = Field(..., min_length=3, max_length=128)
@@ -74,6 +76,7 @@ class AuthInfo(BaseModel):
 # ─────────────────────────────────────────────
 # MAIN EVENT MODEL
 # ─────────────────────────────────────────────
+
 
 class Event(BaseModel):
     event_id: UUID
