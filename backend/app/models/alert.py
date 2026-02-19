@@ -1,9 +1,9 @@
 from sqlalchemy import (
     String,
-    DateTime,
-    ForeignKey,
     Integer,
     Boolean,
+    DateTime,
+    ForeignKey,
     Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -11,17 +11,11 @@ from sqlalchemy.types import TypeDecorator
 from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime, timezone
-from sqlalchemy import UniqueConstraint
-from sqlalchemy import event as sqlalchemy_event
-from sqlalchemy.exc import InvalidRequestError
-
 
 from app.db.base import Base
 
 
-# ─────────────────────────────────────────────
-# Dialect-aware JSON (reuse pattern)
-# ─────────────────────────────────────────────
+# Dialect-aware JSON
 class JSONBCompat(TypeDecorator):
     impl = JSON
     cache_ok = True
@@ -79,8 +73,14 @@ class Alert(Base):
 
     is_escalated: Mapped[bool] = mapped_column(
         Boolean,
-        default=False,
         nullable=False,
+        default=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="open",
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -90,32 +90,7 @@ class Alert(Base):
     )
 
 
-# ─────────────────────────────────────────────
 # Indexes
-# ─────────────────────────────────────────────
 Index("idx_alerts_endpoint_id", Alert.endpoint_id)
 Index("idx_alerts_rule_name", Alert.rule_name)
 Index("idx_alerts_created_at", Alert.created_at)
-
-__table_args__ = (
-    UniqueConstraint(
-        "rule_name",
-        "endpoint_id",
-        "last_event_id",
-        name="uq_alert_rule_endpoint_last_event",
-    ),
-)
-
-# ─────────────────────────────────────────────
-# Enforce Immutability
-# ─────────────────────────────────────────────
-
-
-@sqlalchemy_event.listens_for(Alert, "before_update")
-def prevent_alert_update(mapper, connection, target):
-    raise InvalidRequestError("Alerts are immutable and cannot be updated.")
-
-
-@sqlalchemy_event.listens_for(Alert, "before_delete")
-def prevent_alert_delete(mapper, connection, target):
-    raise InvalidRequestError("Alerts cannot be deleted.")
