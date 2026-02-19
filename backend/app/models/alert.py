@@ -5,17 +5,22 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Enum,
+    CheckConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy import JSON
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime, timezone
+import enum
 
 from app.db.base import Base
 
 
+# ─────────────────────────────────────────────
 # Dialect-aware JSON
+# ─────────────────────────────────────────────
 class JSONBCompat(TypeDecorator):
     impl = JSON
     cache_ok = True
@@ -26,8 +31,27 @@ class JSONBCompat(TypeDecorator):
         return dialect.type_descriptor(JSON())
 
 
+# ─────────────────────────────────────────────
+# Alert Status Enum
+# ─────────────────────────────────────────────
+class AlertStatus(str, enum.Enum):
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
+
+
+# ─────────────────────────────────────────────
+# Alert Model
+# ─────────────────────────────────────────────
 class Alert(Base):
     __tablename__ = "alerts"
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('open', 'acknowledged', 'resolved')",
+            name="chk_alert_status_valid",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
@@ -77,10 +101,15 @@ class Alert(Base):
         default=False,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(50),
+    # 🔐 Store ENUM VALUE (not name)
+    status: Mapped[AlertStatus] = mapped_column(
+        Enum(
+            AlertStatus,
+            native_enum=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
-        default="open",
+        default=AlertStatus.OPEN,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -90,7 +119,9 @@ class Alert(Base):
     )
 
 
+# ─────────────────────────────────────────────
 # Indexes
+# ─────────────────────────────────────────────
 Index("idx_alerts_endpoint_id", Alert.endpoint_id)
 Index("idx_alerts_rule_name", Alert.rule_name)
 Index("idx_alerts_created_at", Alert.created_at)
