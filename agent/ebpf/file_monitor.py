@@ -74,6 +74,10 @@ class FileMonitor:
     BURST_THRESHOLD = 20
     BURST_WINDOW_SEC = 5.0
 
+    # Agent's own PID — skip events from our own process to prevent
+    # self-monitoring feedback loops (e.g., uid lookups read /etc/passwd)
+    _SELF_PID = os.getpid()
+
     def __init__(self, emitter: EventEmitter):
         self._emitter = emitter
         self._bpf: BPF | None = None
@@ -121,6 +125,11 @@ class FileMonitor:
             event = ctypes.cast(data, ctypes.POINTER(FileEvent)).contents
 
             pid = event.pid
+
+            # Skip events from our own process (self-monitoring prevention)
+            if pid == self._SELF_PID:
+                return
+
             uid = event.uid
             etype = event.event_type
             comm = event.comm.decode("utf-8", errors="replace")
