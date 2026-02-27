@@ -33,7 +33,7 @@ from agent.ebpf.dns_monitor import DnsMonitor
 from agent.ebpf.log_tamper_monitor import LogTamperMonitor
 from agent.events.event_emitter import EventEmitter
 from agent.tracking.process_tree import ProcessTree
-from agent.tracking.container_info import enrich_with_container_info
+from agent.tracking.container_info import enrich_event_with_container
 from agent.health.heartbeat import Heartbeat
 from agent.response.response_hook import ResponseHook
 from agent.detection.rule_engine import RuleEngine
