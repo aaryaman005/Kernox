@@ -19,6 +19,91 @@ import {
   CartesianGrid,
 } from 'recharts';
 
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload) return null
+
+  const order = ['Low', 'Medium', 'High', 'Critical']
+
+  const sorted = [...payload].sort(
+    (a, b) => order.indexOf(a.name) - order.indexOf(b.name)
+  )
+
+  return (
+    <div
+      style={{
+        background: '#0A1628',
+        border: '1px solid rgba(122,72,50,0.25)',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        color: '#E2DED8'
+      }}
+    >
+      <div style={{ marginBottom: 6 }}>{label}</div>
+
+      {sorted.map((entry: any) => (
+  <div
+    key={entry.name}
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      gap: 16,
+      color: entry.color
+    }}
+  >
+    <span>{entry.name}</span>
+
+    <span style={{textAlign: 'right', minWidth: 24 }}>
+      {entry.value}
+    </span>
+  </div>
+))}
+    </div>
+  )
+}
+
+
+function TrendTooltip({ active, payload, label }: any) {
+  if (!active || !payload) return null
+
+  const order = ['Critical', 'High', 'Medium', 'Low']
+
+  const sorted = [...payload].sort(
+    (a, b) => order.indexOf(a.name) - order.indexOf(b.name)
+  )
+
+  return (
+    <div
+      style={{
+        background: '#0A1628',
+        border: '1px solid rgba(122,72,50,0.25)',
+        borderRadius: '8px',
+        padding: '10px 14px',
+        color: '#E2DED8'
+      }}
+    >
+      <div style={{ marginBottom: 6 }}>{label}</div>
+
+      {sorted.map((entry: any) => (
+        <div
+          key={entry.name}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+            color: entry.color
+          }}
+        >
+          <span>{entry.name}</span>
+
+          <span style={{ fontFamily: 'monospace', textAlign: 'right', minWidth: 24 }}>
+            {entry.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AnalyticsPage() {
   const { colors } = useTheme();
 
@@ -70,7 +155,7 @@ export default function AnalyticsPage() {
           <p className="text-muted-foreground">Trend analysis and severity distribution</p>
         </motion.div>
 
-        {/* Alert Trends - Full Width */}
+        {/* Alert Trends*/}
         <GlassCard delay={0.1} className="mb-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-3 bg-accent/10 rounded-lg">
@@ -91,14 +176,7 @@ export default function AnalyticsPage() {
                 tick={{ fill: '#9CA3AF', fontSize: 12 }}
               />
               <YAxis stroke="#9CA3AF" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#060D1A',
-                  border: '1px solid rgba(122, 72, 50, 0.18)',
-                  borderRadius: '0.5rem',
-                }}
-                labelStyle={{ color: '#E2DED8' }}
-              />
+              <Tooltip content={<TrendTooltip />} />
               <Legend
                 wrapperStyle={{ color: '#E8E6E3' }}
                 iconType="circle"
@@ -172,18 +250,30 @@ export default function AnalyticsPage() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0A1628',
-                    border: '1px solid rgba(122, 72, 50, 0.25)',
-                    borderRadius: '0.5rem',
-                  }}
-                  labelStyle={{ color: '#E2DED8' }}
-                  itemStyle={{ color: '#E2DED8' }}
-                  formatter={(value: number, name: string) => [
-                    <span style={{ color: '#E2DED8' }}>{value}</span>,
-                    <span style={{ color: '#A0AEBF' }}>{name}</span>,
-                  ]}
-                />
+  contentStyle={{
+    backgroundColor: '#0A1628',
+    border: '1px solid rgba(122, 72, 50, 0.25)',
+    borderRadius: '0.5rem',
+  }}
+  labelStyle={{ color: '#E2DED8' }}
+  formatter={(value: number, name: string) => [
+    <span
+      style={{
+        color: severityColors[name as keyof typeof severityColors],
+        fontFamily: 'monospace'
+      }}
+    >
+      {value}
+    </span>,
+    <span
+      style={{
+        color: severityColors[name as keyof typeof severityColors]
+      }}
+    >
+      {name}
+    </span>,
+  ]}
+/>
               </PieChart>
             </ResponsiveContainer>
 
@@ -222,22 +312,9 @@ export default function AnalyticsPage() {
                   tick={{ fill: '#9CA3AF', fontSize: 11 }}
                 />
                 <YAxis stroke="#9CA3AF" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                <Tooltip
-                  cursor={{ fill: 'rgba(122, 72, 50, 0.08)' }}
-                  contentStyle={{
-                    backgroundColor: '#0A1628',
-                    border: '1px solid rgba(122, 72, 50, 0.25)',
-                    borderRadius: '0.5rem',
-                  }}
-                  labelStyle={{ color: '#E2DED8' }}
-                  itemStyle={{ color: '#E2DED8' }}
-                  formatter={(value: number, name: string) => [
-                    <span style={{ color: '#E2DED8' }}>{value}</span>,
-                    <span style={{ color: '#A0AEBF' }}>{name}</span>,
-                  ]}
-                />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(122,72,50,0.08)' }} />
                 <Legend
-                  wrapperStyle={{ color: '#E8E6E3' }}
+                  wrapperStyle={{ color: '#df1a1a' }}
                   iconType="square"
                 />
                 <Bar dataKey="Critical" stackId="a" fill={severityColors.Critical} />
