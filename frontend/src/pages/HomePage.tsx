@@ -16,7 +16,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  defs,
+  Sector
 } from 'recharts';
 import { GlassCard } from '../components/Card';
 import { MetricCard } from '../components/StatCard';
@@ -120,14 +120,18 @@ export default function HomePage() {
                   tickLine={false}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#060D1A',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '0.5rem',
-                  }}
-                  labelStyle={{ color: '#E2DED8' }}
-                  itemStyle={{ color: '#FFFFFF' }}
-                />
+  formatter={(value: number, name: string) => [
+    <span style={{ fontFamily: "monospace" }}>{value}</span>,
+    name === "total" ? "Total" : name
+  ]}
+  contentStyle={{
+    backgroundColor: '#060D1A',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '0.5rem',
+  }}
+  labelStyle={{ color: '#E2DED8' }}
+  itemStyle={{ color: '#FFFFFF' }}
+/>
                 <Area
                   type="monotone"
                   dataKey="total"
@@ -147,26 +151,52 @@ export default function HomePage() {
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
-                  data={mockDistribution}
-                  dataKey="count"
-                  nameKey="severity"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={90}
-                  paddingAngle={3}
-                >
+  data={mockDistribution}
+  dataKey="count"
+  nameKey="severity"
+  cx="50%"
+  cy="50%"
+  innerRadius={55}
+  outerRadius={90}
+  paddingAngle={3}
+  activeShape={(props: any) => {
+    return <Sector {...props} outerRadius={props.outerRadius + 10} />
+}}
+  isAnimationActive={true}
+>
                   {mockDistribution.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#060D1A',
-                    border: '1px solid rgba(122, 72, 50, 0.18)',
-                    borderRadius: '0.5rem',
-                  }}
-                />
+  content={({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null
+
+    const data = payload[0].payload
+    const severity = data.severity
+
+    const color =
+      severityColors[severity as keyof typeof severityColors]
+
+    return (
+      <div
+        style={{
+          background: '#060D1A',
+          border: '1px solid rgba(122,72,50,0.18)',
+          borderRadius: '8px',
+          padding: '8px 12px',
+        }}
+      >
+        <div style={{ color }}>
+          {severity.charAt(0).toUpperCase() + severity.slice(1)} :{" "}
+          <span style={{ fontFamily: "monospace" }}>
+            {data.count}
+          </span>
+        </div>
+      </div>
+    )
+  }}
+/>
               </PieChart>
             </ResponsiveContainer>
             <div className="grid grid-cols-2 gap-2 mt-2">
